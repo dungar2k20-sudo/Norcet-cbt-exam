@@ -2,20 +2,20 @@
 // 1. CONFIGURATION & STATE
 // ==========================================
 const CONFIG = {
-  examDuration: 60, // Time in minutes (Change this to your exam time)
+  examDuration: 60, // Time in minutes
   questionTime: 0,  // Per question time (0 = unlimited)
-  passingScore: 50, // Percentage needed to pass
-  showFeedback: true, // Show correct/wrong immediately after answer? (Usually false for real exams)
+  passingScore: 50,
+  showFeedback: false, 
 };
 
 let state = {
   questions: [],
   currentQIndex: 0,
-  userAnswers: {}, // { qIndex: selectedOptionIndex }
+  userAnswers: {}, 
   markedQuestions: new Set(),
   startTime: null,
   timerInterval: null,
-  timeRemaining: CONFIG.examDuration * 60, // seconds
+  timeRemaining: CONFIG.examDuration * 60, 
   userName: '',
   isTestActive: false,
   theme: 'dark'
@@ -83,6 +83,7 @@ async function init() {
 
     // Update promo bar link if needed
     els.tgPromoBar.href = els.tgWebApp.initDataUnsafe?.start_param || '#';
+    els.tgPromoBar.style.display = 'flex';
   }
 
   // Load Questions
@@ -95,10 +96,6 @@ async function init() {
     document.getElementById('qTotal').textContent = state.questions.length;
     setupEventListeners();
     
-    // Check if running in Telegram
-    if (els.tgWebApp) {
-      els.tgPromoBar.style.display = 'flex';
-    }
   } catch (err) {
     showToast('Error loading questions: ' + err.message, 'error');
     console.error(err);
@@ -137,7 +134,7 @@ function setupEventListeners() {
     });
   });
 
-  // Keyboard Shortcuts (Optional)
+  // Keyboard Shortcuts
   document.addEventListener('keydown', (e) => {
     if (!state.isTestActive) return;
     if (e.key === 'ArrowLeft') changeQuestion(-1);
@@ -145,7 +142,7 @@ function setupEventListeners() {
     if (e.key === 'Enter') toggleMark();
   });
 
-  // Tab Switching Detection (Anti-cheat)
+  // Tab Switching Detection (Anti-cheat) - Matches Blueprint
   document.addEventListener('visibilitychange', () => {
     if (document.hidden && state.isTestActive) {
       const badge = document.getElementById('tabBadge');
@@ -473,12 +470,7 @@ function startConfetti() {
   }
   
   function animate() {
-    ctx.clearRect(0, 0, els.confettiCanvas.width, els.confettiCanvas.height);
-    particles.forEach(p => {
-      p.y += p.speed;
-      p.x += Math.sin(p.angle) * 2;
-      if (p.y > els.confettiCanvas.height) p.y = -10;
-      ctx.fillStyle = p.color;
+    ctx.clearRect(0, 0, els.confettiCanvas.width, els.confettiCanvas.height);      ctx.fillStyle = p.color;
       ctx.beginPath();
       ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
       ctx.fill();
