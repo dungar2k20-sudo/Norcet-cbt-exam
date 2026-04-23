@@ -405,17 +405,27 @@ function submitExam() {
 }
 
 function shareResult() {
-  // Count correct answers
-  let correct = 0;
+  // Calculate correct answers
+  let correctCount = 0;
   state.questions.forEach((q, i) => {
-    if (state.userAnswers[i] === q.correct) correct++;
+    if (state.userAnswers[i] === q.correct) {
+      correctCount++;
+    }
   });
 
   const total = state.questions.length;
-  const text = I scored ${correct} / ${total} on the NORCET CBT Exam!;
+  const percentage = Math.round((correctCount / total) * 100);
+  
+  // Create the text message
+  const text = `I scored ${correctCount} out of ${total} (${percentage}%) on the NORCET CBT Exam!`;
 
+  // Send to Telegram if available, otherwise alert
   if (els.tgWebApp) {
-    els.tgWebApp.sendData(JSON.stringify({ event: 'share', text: text }));
+    try {
+      els.tgWebApp.sendData(JSON.stringify({ event: 'share', text: text }));
+    } catch (e) {
+      alert(text);
+    }
   } else {
     alert(text);
   }
