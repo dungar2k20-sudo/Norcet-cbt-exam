@@ -1,3 +1,5 @@
+<style>
+
 :root {
   --bg:        #0a0d14;
   --surface:   #111827;
@@ -408,6 +410,7 @@ body:not(.test-active) #progressBar { top: 75px; }
   letter-spacing: 0.3px;
 }
 
+
 body.light-mode {
   --bg:        #f0f4f8;
   --surface:   #ffffff;
@@ -494,3 +497,5 @@ body.light-mode #qtext { background: #fff; }
   width: 100%; height: 100%;
   pointer-events: none; z-index: 9998;
 }
+
+</style>
