@@ -1,134 +1,141 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-  <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-  <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <meta name="theme-color" content="#0a0d14">
-
-  <!-- Telegram Web App Script (Must be first) -->
-  <script src="https://telegram.org/js/telegram-web-app.js"></script>
-
-  <!-- Favicon (Fixed 404 Error) -->
-  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/291/291774.png" type="image/png">
-
-  <title>DEMO — NORCET CBT</title>
-  <link rel="stylesheet" href="style.css">
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="theme-color" content="#0a0d14">
+<title>NORCET CBT | Norcetedutech</title>
+<link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-  <!-- Confetti Canvas -->
-  <canvas id="confettiCanvas"></canvas>
+<canvas id="confettiCanvas"></canvas>
+<div class="notifications" id="notifications"></div>
+
+<div id="fixedHeader">
+  <div id="headerRow1">
+    <span id="brandTitle">CBT | NORCET</span>
+    <div id="headerCenter"></div>
+    <div id="timerWrap">
+      <span id="timerIcon">⏱</span>
+      <span id="timerDisp">--:--</span>
+      <span id="tabBadge">⚠<span id="tabCount">0</span></span>
+    </div>
+  </div>
+  <div id="timerBar"></div>
   
-  <!-- Notifications Container -->
-  <div class="notifications" id="notifications"></div>
+  <a id="tgPromoBar" href="#" target="_blank" rel="noopener">
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+      <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.17 13.6l-2.96-.924c-.643-.204-.657-.643.136-.953l11.57-4.461c.537-.194 1.006.131.978.959z"/>
+    </svg>
+    <span id="tgPromoText">JOIN @NORCETEDUTECH FOR DAILY TESTS</span>
+  </a>
+</div>
 
-  <!-- Fixed Header -->
-  <div id="fixedHeader">
-    <div id="headerRow1">
-      <span id="brandTitle">CBT | NORCET</span>
-      <div id="headerCenter"></div>
-      <div id="timerWrap">
-        <span id="timerIcon">⏱</span>
-        <span id="timerDisp">--:--</span>
-        <span id="tabBadge">⚠<span id="tabCount">0</span></span>
-      </div>
+<div id="progressBar"><div id="progressFill"></div></div>
+
+<div id="login">
+  <button id="themeToggle" onclick="toggleTheme()" style="position:absolute;top:16px;right:16px;">🌙</button>
+  <div class="logo-ring" id="logoEmoji">🧠</div>
+  <div class="login-title" id="loginTitle">NORCET CBT</div>
+  <div class="login-sub"   id="loginSubject">Subject Loading…</div>
+  <div class="login-meta"  id="loginMeta">Loading questions…</div>
+  <div id="fontControls"><button onclick="changeFont(-1)">A−</button><span id="fontLabel">15px</span><button onclick="changeFont(1)">A+</button></div>
+  <input type="text" id="usernameInput" placeholder="Enter Your Full Name"
+    maxlength="40" autocomplete="off" autocorrect="off"
+    autocapitalize="words" spellcheck="false">
+  <button class="btn btn-green" id="startBtn" onclick="startTest()">▶️ Start Test</button>
+  
+<div id="copyrightBar">© Norcetedutech — All Rights Reserved. Unauthorized copying or redistribution is prohibited.</div>
+<a id="tgLoginLink" href="#" target="_blank" style="color:var(--tg-blue);font-size:13px;font-weight:600;">📱 Join Telegram Channel</a>
+</div>
+
+<div id="test">
+  <div id="qmeta">
+    <span id="qmetaLeft">Q1/100 | Sec 1</span>
+    <span id="qmetaRight">Ans: 0 | Skip: 100</span>
+  </div>
+  <div id="sataBadge">SELECT ALL THAT APPLY — Choose all correct options</div>
+  <div id="imgBox"><img id="qimg" src="" alt="Question Image"></div>
+  <div id="qtext"></div>
+  <div id="options"></div>
+  <button id="reportBtn" onclick="openReport()">🚩 Report an error in this question</button>
+</div>
+
+<div id="result">
+  <div id="result-inner" class="page">
+    <div class="scorecard" style="text-align:center;">
+      <div style="color:var(--text-dim);font-size:12px;" id="r-subject"></div>
+      <div id="r-name" style="font-size:1.1em;font-weight:800;margin:4px 0;"></div>
+      <div class="score-num" id="r-score"></div>
+      <div style="color:var(--text-dim);font-size:12px;margin-top:2px;" id="r-total"></div>
+      <div class="acc-num" id="r-acc"></div>
+      <div class="acc-label">🎯 Accuracy (attempted only)</div>
+      <div id="gradeBadge"></div>
     </div>
-    <div id="timerBar"></div>
-    
-    <a id="tgPromoBar" href="#" target="_blank" rel="noopener" style="display:none;">
-      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
-      </svg>
-      <span>Try in Telegram</span>
-    </a>
-  </div>
-
-  <!-- Progress Bar -->
-  <div id="progressBar">
-    <div id="progressFill"></div>
-  </div>
-
-  <!-- Login Screen -->
-  <div id="login" class="page">
-    <div class="logo-ring">📚</div>
-    <div class="login-title">NORCET CBT</div>
-    <div class="login-sub">Computer-Based Test</div>
-    <div class="login-meta">
-      Enter your <span>Name</span> to begin the exam
-    </div>
-    <input type="text" id="usernameInput" placeholder="Your Name" maxlength="50">
-    <button class="btn btn-blue" id="startBtn">Start Exam</button>
-  </div>
-
-  <!-- Test Screen -->
-  <div id="test">
-    <div id="qmeta">
-      <span id="qmetaLeft">Question <span id="qNum">1</span>/<span id="qTotal">0</span></span>
-      <span id="qmetaRight"><span id="markedCount">0</span> marked</span>
-    </div>
-    <div id="sataBadge"></div>
-    <div id="imgBox"></div>
-    <div id="qtext"></div>
-    <div id="options"></div>
-    <button id="reportBtn">Report Question</button>
-  </div>
-
-  <!-- Result Screen -->
-  <div id="result" class="page">
-    <div id="result-inner"></div>
-  </div>
-
-  <!-- Review Screen -->
-  <div id="review" class="page">
-    <div class="rev-filter-tray">
-      <button class="rev-filter-btn active-all" data-filter="all">All</button>
-      <button class="rev-filter-btn" data-filter="correct">✓ Correct</button>
-      <button class="rev-filter-btn" data-filter="wrong">✗ Wrong</button>
-      <button class="rev-filter-btn" data-filter="skip">- Skipped</button>
-    </div>
-    <div id="review-inner"></div>
-  </div>
-
-  <!-- Bottom Navigation -->
-  <div id="bottomNav">
-    <button class="btn btn-gray" id="prevBtn">← Previous</button>
-    <button class="btn btn-gray" id="markBtn">Mark</button>
-    <button class="btn btn-blue" id="nextBtn">Next →</button>
-    <button class="btn btn-red" id="submitBtn">Submit</button>
-  </div>
-
-  <!-- Right Panel -->
-  <div id="rightPanel">
-    <button class="btn btn-gray" id="paletteBtn">Palette</button>
-    <button class="btn btn-gray" id="reviewBtn">Review</button>
-  </div>
-
-  <!-- Palette Box -->
-  <div id="paletteBox">
-    <div class="pal-legend">
-      <div>✓ Answered</div>
-      <div>- Marked for Review</div>
-      <div>? Not Answered</div>
-    </div>
-    <div id="palGrid"></div>
-  </div>
-
-  <!-- Report Modal -->
-  <div id="reportModal">
-    <div id="reportBox">
-      <h3>Report Question</h3>
-      <button class="rep-opt" data-reason="error">Question has error</button>
-      <button class="rep-opt" data-reason="unclear">Question is unclear</button>
-      <button class="rep-opt" data-reason="answer">Answer seems wrong</button>
-      <button class="rep-opt" data-reason="other">Other issue</button>
-      <button class="rep-close">Close</button>
+    <div class="scorecard" id="r-analysis"></div>
+    <div class="scorecard" id="r-topics" style="text-align:left;"></div>
+    <div class="result-btns">
+      <button class="btn btn-green" onclick="shareTG()">📤 Share Scorecard</button>
+      <button class="btn btn-blue"  onclick="reviewMode()">📖 Review All Answers</button>
+      <button class="btn" id="shareTestBtn"
+        style="background:linear-gradient(135deg,#0088cc,#00a2ed);display:flex;align-items:center;justify-content:center;gap:8px;font-weight:700;"
+        onclick="shareTestTG()">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="white">
+          <path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.6l-2.95-.924c-.641-.2-.657-.641.136-.951l11.57-4.461c.537-.194 1.006.131.858.957z"/>
+        </svg>
+        📢 SHARE TEST WITH FRIENDS
+      </button>
+      <button class="btn btn-tg" id="resultTgBtn" onclick="window.open('#','_blank')">📱 Join Channel</button>
+      <button class="btn btn-gray" onclick="resetTest()">🔄 Restart</button>
     </div>
   </div>
+</div>
 
-  <!-- Scripts -->
-  <script src="script.js"></script>
+<div id="review">
+  <div id="review-inner" class="page">
+    <h2 style="text-align:center;padding:14px 0 4px;color:var(--accent2);font-size:1.2em;">📖 Review Mode</h2>
+    <p style="text-align:center;font-size:11px;color:var(--text-dim);margin-bottom:12px;">✓ Correct &nbsp;✗ Your wrong pick &nbsp;· Not attempted</p>
+    <div id="reviewContent"></div>
+
+<div id="copyrightBar">© Norcetedutech — All Rights Reserved. Unauthorized copying or redistribution is prohibited.</div>
+  </div>
+</div>
+
+<div id="bottomNav">
+  <button class="btn btn-blue"   onclick="prev()">◀ Prev</button>
+  <button class="btn btn-yellow" id="markBtn" onclick="markQ()">★ Mark</button>
+  <button class="btn btn-blue"   onclick="next()">Next ▶</button>
+</div>
+
+<div id="rightPanel">
+  <button class="btn btn-green" onclick="confirmSubmit()" style="font-size:11px;padding:9px 4px;">Submit</button>
+  <button class="btn btn-gray"  onclick="togglePalette()" style="font-size:11px;padding:9px 4px;">☰ Grid</button>
+</div>
+
+<div id="paletteBox">
+  <div class="pal-legend">
+    🔵 Current &nbsp; ✅ Answered &nbsp; ★ Marked &nbsp; □ Unanswered<br>
+    <span style="font-size:10px;color:var(--text-faint);">Tap a number to jump · Tap Grid to close</span>
+  </div>
+  <div id="palGrid"></div>
+</div>
+
+<div id="reportModal">
+  <div id="reportBox">
+    <h3>🚩 Report Error — Q<span id="reportQNum"></span></h3>
+    <button class="rep-opt" onclick="submitReport('Wrong answer key')">❌ Wrong answer key</button>
+    <button class="rep-opt" onclick="submitReport('Typo or unclear question')">✏️ Typo / unclear question</button>
+    <button class="rep-opt" onclick="submitReport('Wrong options listed')">📋 Wrong options listed</button>
+    <button class="rep-opt" onclick="submitReport('Wrong explanation')">💡 Wrong explanation</button>
+    <button class="rep-close" onclick="closeReport()">Cancel</button>
+  </div>
+</div>
+
+<script src="questions.js"></script>
+<script src="script.js"></script>
 </body>
 </html>

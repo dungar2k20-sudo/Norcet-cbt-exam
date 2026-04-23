@@ -1,484 +1,680 @@
-// ==========================================
-// 1. CONFIGURATION & STATE
-// ==========================================
-const CONFIG = {
-  examDuration: 60, // Time in minutes
-  questionTime: 0,  // Per question time (0 = unlimited)
-  passingScore: 50,
-  showFeedback: false, 
-};
 
-let state = {
-  questions: [],
-  currentQIndex: 0,
-  userAnswers: {}, 
-  markedQuestions: new Set(),
-  startTime: null,
-  timerInterval: null,
-  timeRemaining: CONFIG.examDuration * 60, 
-  userName: '',
-  isTestActive: false,
-  theme: 'dark'
-};
+/* Load questions from questions.json then boot the engine */
+let QUESTIONS = [];
+let TOTAL_Q = 0;
+let TOTAL_TIME = 0;
 
-// DOM Elements
-const els = {
-  login: document.getElementById('login'),
-  test: document.getElementById('test'),
-  result: document.getElementById('result'),
-  review: document.getElementById('review'),
-  bottomNav: document.getElementById('bottomNav'),
-  rightPanel: document.getElementById('rightPanel'),
-  paletteBox: document.getElementById('paletteBox'),
-  reportModal: document.getElementById('reportModal'),
-  qtext: document.getElementById('qtext'),
-  options: document.getElementById('options'),
-  qNum: document.getElementById('qNum'),
-  qTotal: document.getElementById('qTotal'),
-  timerDisp: document.getElementById('timerDisp'),
-  timerBar: document.getElementById('timerBar'),
-  progressFill: document.getElementById('progressFill'),
-  startBtn: document.getElementById('startBtn'),
-  usernameInput: document.getElementById('usernameInput'),
-  tgPromoBar: document.getElementById('tgPromoBar'),
-  notifications: document.getElementById('notifications'),
-  confettiCanvas: document.getElementById('confettiCanvas'),
-  // Buttons
-  prevBtn: document.getElementById('prevBtn'),
-  nextBtn: document.getElementById('nextBtn'),
-  markBtn: document.getElementById('markBtn'),
-  submitBtn: document.getElementById('submitBtn'),
-  paletteBtn: document.getElementById('paletteBtn'),
-  reviewBtn: document.getElementById('reviewBtn'),
-  palGrid: document.getElementById('palGrid'),
-  reportBtn: document.getElementById('reportBtn'),
-  reportClose: document.querySelector('.rep-close'),
-  // Telegram
-  tgWebApp: window.Telegram?.WebApp
-};
+fetch('questions.json')
+  .then(r => r.json())
+  .then(data => {
+    QUESTIONS = data;
+    TOTAL_Q   = QUESTIONS.length;
+    TOTAL_TIME = TOTAL_Q * CONFIG.TIME_PER_Q;
+    bootApp();
+  })
+  .catch(() => {
+    document.getElementById('loginMeta').innerHTML =
+      '<span style="color:var(--red)">⚠️ Failed to load questions.json</span>';
+    document.getElementById('startBtn').disabled = true;
+  });
 
-// ==========================================
-// 2. INITIALIZATION & TELEGRAM SETUP
-// ==========================================
 
-async function init() {
-  // Initialize Telegram WebApp if available
-  if (els.tgWebApp) {
-    els.tgWebApp.ready();
-    els.tgWebApp.expand();
-    
-    // Set theme to match our CSS or use Telegram's
-    const tgTheme = els.tgWebApp.colorScheme;
-    if (tgTheme === 'light') {
-      document.body.classList.add('light-mode');
-      state.theme = 'light';
-    }
+let idx=0, uName='', ans=[], mrk=[], done=false;
+let tmr=null, tLeft=TOTAL_TIME, tabN=0, qTimes=[], palOpen=false;
+let swipe={sx:0, sy:0, active:false};
+let clipboardPermissionGranted = false;
 
-    // Try to get user name from Telegram if available
-    const user = els.tgWebApp.initDataUnsafe?.user;
-    if (user && (user.first_name || user.last_name)) {
-      const name = `${user.first_name || ''} ${user.last_name || ''}`.trim();
-      els.usernameInput.value = name;
-    }
+function bootApp() {
 
-    // Update promo bar link if needed
-    els.tgPromoBar.href = els.tgWebApp.initDataUnsafe?.start_param || '#';
-    els.tgPromoBar.style.display = 'flex';
-  }
+  document.title                              = CONFIG.TEST_NAME;
+  document.getElementById('brandTitle').textContent   = CONFIG.BRAND;
+  document.getElementById('loginTitle').textContent   = CONFIG.BRAND;
+  document.getElementById('loginSubject').textContent = CONFIG.SUBJECT;
+  document.getElementById('logoEmoji').textContent    = CONFIG.LOGO_EMOJI;
+  const tgUrl = `https://t.me/${CONFIG.TG_CHANNEL}`;
+  document.getElementById('tgPromoBar').href          = tgUrl;
+  document.getElementById('tgPromoText').textContent  = `JOIN @${CONFIG.TG_CHANNEL.toUpperCase()} FOR DAILY TESTS`;
+  document.getElementById('tgLoginLink').href         = tgUrl;
+  document.getElementById('tgLoginLink').textContent  = `📱 Join @${CONFIG.TG_CHANNEL}`;
+  document.getElementById('resultTgBtn').textContent  = `📱 Join @${CONFIG.TG_CHANNEL}`;
+  document.getElementById('resultTgBtn').onclick      = () => window.open(tgUrl,'_blank');
 
-  // Load Questions
-  try {
-    const response = await fetch('questions.json');
-    if (!response.ok) throw new Error('Failed to load questions');
-    state.questions = await response.json();
-    
-    // Initialize UI
-    document.getElementById('qTotal').textContent = state.questions.length;
-    setupEventListeners();
-    
-  } catch (err) {
-    showToast('Error loading questions: ' + err.message, 'error');
-    console.error(err);
+  updateLoginMeta();
+  setupTabMonitor();
+  initPrefs();
+
+  if(loadS()){
+    const r=`${Math.floor(tLeft/60)}m ${tLeft%60}s`;
+    const a=ans.filter(x=>x!==null).length;
+    if(confirm(`Resume "${uName}"?\n${a} answered · ${r} left\n\nCancel = Start fresh`)){
+      showTestUI();
+    } else { clearS(); }
   }
 }
 
-function setupEventListeners() {
-  // Start Exam
-  els.startBtn.addEventListener('click', startExam);
-
-  // Navigation
-  els.prevBtn.addEventListener('click', () => changeQuestion(-1));
-  els.nextBtn.addEventListener('click', () => changeQuestion(1));
-  els.markBtn.addEventListener('click', toggleMark);
-  els.submitBtn.addEventListener('click', confirmSubmit);
-  
-  // Panels
-  els.paletteBtn.addEventListener('click', togglePalette);
-  els.reviewBtn.addEventListener('click', showReview);
-  
-  // Palette Grid clicks
-  els.palGrid.addEventListener('click', (e) => {
-    if (e.target.classList.contains('pal-btn')) {
-      const idx = parseInt(e.target.dataset.index);
-      goToQuestion(idx);
-    }
-  });
-
-  // Report Modal
-  els.reportBtn.addEventListener('click', () => els.reportModal.classList.add('show'));
-  els.reportClose.addEventListener('click', () => els.reportModal.classList.remove('show'));
-  document.querySelectorAll('.rep-opt').forEach(btn => {
-    btn.addEventListener('click', (e) => {
-      showToast(`Reported: ${e.target.dataset.reason}`, 'info');
-      els.reportModal.classList.remove('show');
-    });
-  });
-
-  // Keyboard Shortcuts
-  document.addEventListener('keydown', (e) => {
-    if (!state.isTestActive) return;
-    if (e.key === 'ArrowLeft') changeQuestion(-1);
-    if (e.key === 'ArrowRight') changeQuestion(1);
-    if (e.key === 'Enter') toggleMark();
-  });
-
-  // Tab Switching Detection (Anti-cheat) - Matches Blueprint
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden && state.isTestActive) {
-      const badge = document.getElementById('tabBadge');
-      badge.classList.add('visible');
-      const count = parseInt(document.getElementById('tabCount').textContent) || 0;
-      document.getElementById('tabCount').textContent = count + 1;
-      showToast('Tab switch detected!', 'error');
-    }
-  });
-}
-
-// ==========================================
-// 3. EXAM LOGIC
-// ==========================================
-
-function startExam() {
-  const name = els.usernameInput.value.trim();
-  if (!name) {
-    showToast('Please enter your name', 'error');
+function updateLoginMeta(){
+  if(!TOTAL_Q){
+    document.getElementById('loginMeta').innerHTML =
+      '<span style="color:var(--red)">⚠️ No questions found — add your QUESTIONS array</span>';
+    document.getElementById('startBtn').disabled = true;
     return;
   }
-  state.userName = name;
-  state.isTestActive = true;
-  state.startTime = Date.now();
-  
-  // UI Updates
-  els.login.style.display = 'none';
-  els.test.style.display = 'block';
-  els.bottomNav.classList.add('visible');
-  els.rightPanel.classList.add('visible');
+  const sata = QUESTIONS.filter(q=>q.sata).length;
+  document.getElementById('loginMeta').innerHTML =
+    `<span>${TOTAL_Q} Questions</span> <span>${Math.floor(TOTAL_TIME/60)} Minutes</span> <span>−${CONFIG.MARKING} Marking</span><br>`+
+    (sata ? `<span style="color:var(--yellow)">⚡ ${sata} SATA Questions</span> ` : '');
+}
+
+function saveS(){
+  try{ localStorage.setItem(CONFIG.SK, JSON.stringify({uName,ans,mrk,tLeft,idx,tabN,qTimes})); }catch(e){}
+}
+function loadS(){
+  try{
+    const s=JSON.parse(localStorage.getItem(CONFIG.SK)||'null');
+    if(!s||!s.uName) return false;
+    uName=s.uName; ans=s.ans; mrk=s.mrk||Array(TOTAL_Q).fill(false);
+    tLeft=s.tLeft||TOTAL_TIME; idx=s.idx||0; tabN=s.tabN||0;
+    qTimes=s.qTimes||Array(TOTAL_Q).fill(0);
+    return true;
+  }catch(e){ return false; }
+}
+function clearS(){ try{ localStorage.removeItem(CONFIG.SK); }catch(e){} }
+function initA(){ ans=QUESTIONS.map(()=>null); mrk=Array(TOTAL_Q).fill(false); qTimes=Array(TOTAL_Q).fill(0); }
+
+function getTopic(i){
+  return QUESTIONS[i].topic ||
+    CONFIG.TOPICS[Math.min(Math.floor(i/(Math.ceil(TOTAL_Q/CONFIG.TOPICS.length))), CONFIG.TOPICS.length-1)] ||
+    'General';
+}
+
+function startTest(){
+  if(!TOTAL_Q){ alert('No questions loaded. Please add your QUESTIONS array.'); return; }
+  uName = document.getElementById('usernameInput').value.trim();
+  if(!uName){ alert('Please enter your name to begin.'); return; }
+  initClipboardAccess();
+  initA();
+  goFS();
+  showTestUI();
+  saveS();
+}
+
+function showTestUI(){
   document.body.classList.add('test-active');
-  
-  // Start Timer
+  done = false;
+  document.getElementById('login').style.display   = 'none';
+  document.getElementById('test').style.display    = 'block';
+  document.getElementById('result').style.display  = 'none';
+  document.getElementById('review').style.display  = 'none';
+  document.getElementById('bottomNav').classList.add('visible');
+  document.getElementById('rightPanel').classList.add('visible');
+  setupClipboardListener();
+  buildPalette();
+  loadQ();
   startTimer();
-  
-  // Load First Question
-  renderQuestion(0);
-  updatePalette();
-  
-  // Telegram: Send data if available
-  if (els.tgWebApp) {
-    els.tgWebApp.sendData(JSON.stringify({ event: 'exam_started', user: state.userName }));
-  }
+  setupSwipe();
+  updateTabUI();
 }
 
-function startTimer() {
-  updateTimerDisplay();
-  els.timerBar.style.width = '100%';
-  els.timerBar.style.background = 'var(--green)';
-  
-  state.timerInterval = setInterval(() => {
-    state.timeRemaining--;
-    updateTimerDisplay();
-    
-    // Update Progress Bar
-    const total = CONFIG.examDuration * 60;
-    const pct = (state.timeRemaining / total) * 100;
-    els.timerBar.style.width = `${pct}%`;
-    
-    if (state.timeRemaining <= 60) {
-      els.timerBar.style.background = 'var(--red)';
-      els.timerDisp.classList.add('timer-warn');
-    }
-
-    if (state.timeRemaining <= 0) {
-      clearInterval(state.timerInterval);
-      submitExam();
-    }
-  }, 1000);
+function goFS(){
+  const el=document.documentElement;
+  (el.requestFullscreen||el.webkitRequestFullscreen||el.mozRequestFullScreen||
+   el.msRequestFullscreen||function(){}).call(el).catch(()=>{});
 }
 
-function updateTimerDisplay() {
-  const m = Math.floor(state.timeRemaining / 60);
-  const s = state.timeRemaining % 60;
-  els.timerDisp.textContent = `${m.toString().padStart(2, '0')}:${s.toString().padStart(2, '0')}`;
+function startTimer(){
+  if(tmr) clearInterval(tmr);
+  renderTimer();
+  tmr = setInterval(()=>{
+    if(tLeft<=0){ submitTest(); return; }
+    tLeft--;
+    if(qTimes[idx]!==undefined) qTimes[idx]++;
+    renderTimer();
+    if(tLeft%10===0) saveS();
+  },1000);
+}
+function renderTimer(){
+  const m=Math.floor(tLeft/60), s=tLeft%60;
+  const el=document.getElementById('timerDisp');
+  el.textContent = m+':'+(s<10?'0'+s:s);
+  el.className   = tLeft<=300 ? 'timer-warn' : '';
+  const pct=tLeft/TOTAL_TIME*100;
+  const col=tLeft>TOTAL_TIME*0.5?'#22c55e':tLeft>TOTAL_TIME*0.2?'#f59e0b':'#ef4444';
+  document.getElementById('timerBar').style.cssText =
+    `width:${pct}%;background:${col};height:3px;transition:width 0.9s linear,background 0.5s;`;
+  document.getElementById('progressFill').style.width = ((idx+1)/TOTAL_Q*100)+'%';
 }
 
-function renderQuestion(index) {
-  if (index < 0 || index >= state.questions.length) return;
-  
-  state.currentQIndex = index;
-  const q = state.questions[index];
-  
-  // Update Meta
-  document.getElementById('qNum').textContent = index + 1;
-  document.getElementById('markedCount').textContent = state.markedQuestions.size;
-  
-  // Render Question Text
-  els.qtext.innerHTML = q.question;
-  
-  // Render Image if exists
+function loadQ(){
+  const q   = QUESTIONS[idx];
+  const sec = Math.floor(idx/(Math.ceil(TOTAL_Q/4)))+1;
+  const atmpt = ans.filter(x=>x!==null).length;
+  document.getElementById('qmetaLeft').textContent  = `Q${idx+1}/${TOTAL_Q}  |  Sec ${sec}`;
+  document.getElementById('qmetaRight').textContent = `Ans: ${atmpt} | Skip: ${TOTAL_Q-atmpt}`;
+
+  const sataBadge = document.getElementById('sataBadge');
+  sataBadge.className = q.sata ? 'visible' : '';
+
   const imgBox = document.getElementById('imgBox');
-  if (q.image) {
-    imgBox.innerHTML = `<img src="${q.image}" alt="Question Image">`;
-    imgBox.classList.add('visible');
-  } else {
-    imgBox.classList.remove('visible');
-  }
-  
-  // Render Options
-  els.options.innerHTML = '';
-  const labels = ['A', 'B', 'C', 'D'];
-  
-  q.options.forEach((opt, i) => {
-    const btn = document.createElement('div');
-    btn.className = 'opt';
-    if (state.userAnswers[index] === i) btn.classList.add('selected');
-    
-    btn.innerHTML = `
-      <span class="opt-label">${labels[i] || i+1}</span>
-      <span class="opt-text">${opt}</span>
-    `;
-    
-    btn.onclick = () => selectOption(index, i);
-    els.options.appendChild(btn);
+  if(q.image){ document.getElementById('qimg').src=q.image; imgBox.className='visible'; }
+  else { imgBox.className=''; }
+
+  const qtEl = document.getElementById('qtext');
+  qtEl.textContent = q.q;
+  qtEl.scrollTop   = 0;
+
+  const a = ans[idx];
+  let html = '';
+  q.options.forEach((o,i)=>{
+    let sel='';
+    if(q.sata){ if(Array.isArray(a)&&a.includes(i)) sel=' selected'; }
+    else       { if(a===i) sel=' selected'; }
+    html += `<div class="opt${sel}" onclick="pickOpt(${i})">
+      <span class="opt-label">${String.fromCharCode(65+i)}.</span>
+      <span class="opt-text">${escHtml(o)}</span>
+    </div>`;
   });
-  
-  // Update Progress Bar
-  const progressPct = ((index + 1) / state.questions.length) * 100;
-  els.progressFill.style.width = `${progressPct}%`;
-  
-  // Update Palette Active State
+  document.getElementById('options').innerHTML = html;
+  document.getElementById('markBtn').style.background = mrk[idx] ? 'var(--yellow-dim)' : '';
+  document.getElementById('reportBtn').textContent  = '🚩 Report an error in this question';
+  document.getElementById('reportBtn').style.color  = '';
   updatePalette();
 }
 
-function selectOption(qIndex, optIndex) {
-  state.userAnswers[qIndex] = optIndex;
-  renderQuestion(qIndex); // Re-render to show selection
+function escHtml(s){
+  return String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
 }
 
-function changeQuestion(delta) {
-  const newIndex = state.currentQIndex + delta;
-  if (newIndex >= 0 && newIndex < state.questions.length) {
-    renderQuestion(newIndex);
-  }
-}
-
-function goToQuestion(index) {
-  renderQuestion(index);
-  togglePalette(); // Close palette if open
-}
-
-function toggleMark() {
-  const idx = state.currentQIndex;
-  if (state.markedQuestions.has(idx)) {
-    state.markedQuestions.delete(idx);
-    showToast('Mark removed', 'info');
+function pickOpt(i){
+  const q=QUESTIONS[idx];
+  if(q.sata){
+    if(!Array.isArray(ans[idx])) ans[idx]=[];
+    const p=ans[idx].indexOf(i);
+    if(p>=0) ans[idx].splice(p,1); else ans[idx].push(i);
+    if(ans[idx].length===0) ans[idx]=null;
   } else {
-    state.markedQuestions.add(idx);
-    showToast('Marked for review', 'info');
+    ans[idx]=i;
   }
-  renderQuestion(idx); // Update marked count
-  updatePalette();
+  saveS(); loadQ();
 }
 
-function updatePalette() {
-  els.palGrid.innerHTML = '';
-  state.questions.forEach((_, i) => {
-    const btn = document.createElement('button');
-    btn.className = 'pal-btn';
-    btn.dataset.index = i;
-    btn.textContent = i + 1;
-    
-    if (state.userAnswers.hasOwnProperty(i)) {
-      btn.style.color = 'var(--green)';
-      btn.style.borderColor = 'var(--green)';
-    }
-    if (state.markedQuestions.has(i)) {
-      btn.style.color = 'var(--yellow)';
-      btn.style.borderColor = 'var(--yellow)';
-    }
-    if (i === state.currentQIndex) {
-      btn.style.background = 'var(--accent)';
-      btn.style.color = '#fff';
-    }
-    
-    els.palGrid.appendChild(btn);
+function next(){ if(idx<TOTAL_Q-1){ idx++; loadQ(); closePalette(); } }
+function prev(){ if(idx>0)        { idx--; loadQ(); closePalette(); } }
+function jump(i){ idx=i; loadQ(); closePalette(); }
+function markQ(){
+  mrk[idx]=!mrk[idx];
+  document.getElementById('markBtn').style.background = mrk[idx] ? 'var(--yellow-dim)' : '';
+  updatePalette(); saveS();
+}
+
+function setupSwipe(){
+  document.addEventListener('touchstart',e=>{
+    if(palOpen) return;
+    const tag=e.target.tagName;
+    if(tag==='BUTTON'||tag==='INPUT'||tag==='SELECT'||tag==='TEXTAREA') return;
+    swipe.sx=e.touches[0].clientX;
+    swipe.sy=e.touches[0].clientY;
+    swipe.active=true;
+  },{passive:true});
+
+  document.addEventListener('touchmove',e=>{
+    if(!swipe.active) return;
+    const dx=e.touches[0].clientX-swipe.sx;
+    const dy=e.touches[0].clientY-swipe.sy;
+    if(Math.abs(dy)>Math.abs(dx)&&Math.abs(dy)>10) swipe.active=false;
+  },{passive:true});
+
+  document.addEventListener('touchend',e=>{
+    if(!swipe.active) return;
+    swipe.active=false;
+    if(done||document.getElementById('test').style.display==='none') return;
+    if(palOpen) return;
+    const dx=e.changedTouches[0].clientX-swipe.sx;
+    const dy=e.changedTouches[0].clientY-swipe.sy;
+    if(Math.abs(dx)>Math.abs(dy)&&Math.abs(dx)>50){ dx<0?next():prev(); }
+  },{passive:true});
+}
+
+function buildPalette(){
+  let h='';
+  for(let i=0;i<TOTAL_Q;i++)
+    h+=`<button class="pal-btn" onclick="jump(${i})">${i+1}</button>`;
+  document.getElementById('palGrid').innerHTML=h;
+}
+function updatePalette(){
+  document.querySelectorAll('.pal-btn').forEach((b,i)=>{
+    b.style.cssText='';
+    if(ans[i]!==null&&ans[i]!==undefined){ b.style.background='var(--green-dim)'; b.style.color='var(--green)'; }
+    if(mrk[i]){ b.style.background='var(--yellow-bg)'; b.style.color='var(--yellow)'; }
+    if(i===idx){ b.style.background='var(--accent)'; b.style.color='#fff'; b.style.fontWeight='800'; b.style.outline='2px solid var(--accent2)'; }
   });
 }
-
-function togglePalette() {
-  els.paletteBox.classList.toggle('open');
+function togglePalette(){
+  palOpen=!palOpen;
+  document.getElementById('paletteBox').classList.toggle('open',palOpen);
+  if(palOpen) setTimeout(()=>{
+    const btns=document.querySelectorAll('.pal-btn');
+    if(btns[idx]) btns[idx].scrollIntoView({block:'center',behavior:'smooth'});
+  },320);
+}
+function closePalette(){
+  palOpen=false;
+  document.getElementById('paletteBox').classList.remove('open');
 }
 
-function showReview() {
-  // Simple review implementation
-  els.test.style.display = 'none';
-  els.bottomNav.classList.remove('visible');
-  els.review.style.display = 'block';
-  
-  const container = document.getElementById('review-inner');
-  container.innerHTML = '<h3>Review coming soon - Full logic to be added</h3>';
-}
-
-function confirmSubmit() {
-  if (confirm(`Submit exam? You have answered ${Object.keys(state.userAnswers).length} out of ${state.questions.length} questions.`)) {
-    submitExam();
-  }
-}
-
-function submitExam() {
-  clearInterval(state.timerInterval);
-  state.isTestActive = false;
-  
-  // Calculate Score
-  let score = 0;
-  state.questions.forEach((q, i) => {
-    if (state.userAnswers[i] === q.correct) {
-      score++;
-    }
+function calcScore(){
+  let c=0, w=0, sk=0;
+  QUESTIONS.forEach((q,i)=>{
+    const a=ans[i];
+    if(a===null||a===undefined){ sk++; return; }
+    const cs=q.answer.slice().sort().join(',');
+    const gs=q.sata?(Array.isArray(a)?[...a].sort():[]).join(','):[a].join(',');
+    if(gs===cs) c++; else w++;
   });
-  
-  const total = state.questions.length;
-  const percentage = Math.round((score / total) * 100);
-  
-  // Show Results
-  els.test.style.display = 'none';
-  els.bottomNav.classList.remove('visible');
-  els.result.style.display = 'block';
+  return{c, w, sk, score: Math.max(0, c - w*CONFIG.MARKING).toFixed(2)};
+}
+function calcTopics(){
+  const map={};
+  QUESTIONS.forEach((q,i)=>{
+    const t=getTopic(i);
+    if(!map[t]) map[t]={c:0,w:0,sk:0};
+    const a=ans[i];
+    if(a===null||a===undefined){ map[t].sk++; return; }
+    const cs=q.answer.slice().sort().join(',');
+    const gs=q.sata?(Array.isArray(a)?[...a].sort():[]).join(','):[a].join(',');
+    if(gs===cs) map[t].c++; else map[t].w++;
+  });
+  return map;
+}
+
+function confirmSubmit(){
+  const{sk}=calcScore();
+  if(sk>0&&!confirm(`You have ${sk} unanswered question(s).\nSubmit anyway?`)) return;
+  submitTest();
+}
+function submitTest(){
+  if(done) return; done=true;
+  clearInterval(tmr);
+  const{c,w,sk,score}=calcScore();
+  const acc     = c+w>0 ? (c/(c+w)*100).toFixed(1) : '0.0';
+  const overall = (c/TOTAL_Q*100).toFixed(1);
+  const used    = TOTAL_TIME-tLeft;
+  const timeStr = `${Math.floor(used/60)}m ${used%60}s`;
+  const pct     = parseFloat(score)/TOTAL_Q*100;
+  const grade   = pct>=80?'A — Excellent':pct>=65?'B — Good':pct>=50?'C — Pass':'D — Needs Work';
+  const gcol    = pct>=80?'var(--green)':pct>=65?'var(--accent2)':pct>=50?'var(--yellow)':'var(--red)';
+
+  ['bottomNav','rightPanel'].forEach(id=>{
+    const el=document.getElementById(id);
+    if(el) el.classList.remove('visible');
+  });
   document.body.classList.remove('test-active');
-  
-  const resultInner = document.getElementById('result-inner');
-  resultInner.innerHTML = `
-    <div class="scorecard">
-      <div class="score-num">${percentage}%</div>
-      <div class="acc-num">${score} / ${total}</div>
-      <div class="acc-label">Correct Answers</div>
-    </div>
-    <div class="stat">
-      <span>Student: ${state.userName}</span>
-      <span>${state.timeRemaining}s left</span>
-    </div>
-    <div class="result-btns">
-      <button class="btn btn-blue" onclick="location.reload()">Retake Exam</button>
-      <button class="btn btn-gray" onclick="shareResult()">Share Result</button>
-    </div>
-  `;
-  
-  // Telegram: Send Result
-  if (els.tgWebApp) {
-    const resultData = {
-      event: 'exam_completed',
-      user: state.userName,
-      score: score,
-      total: total,
-      percentage: percentage
-    };
-    els.tgWebApp.sendData(JSON.stringify(resultData));
-    // Optionally close the app
-    // els.tgWebApp.close(); 
-  }
-  
-  // Confetti
-  if (percentage >= CONFIG.passingScore) {
-    startConfetti();
-  }
+  document.getElementById('test').style.display   = 'none';
+  document.getElementById('result').style.display = 'block';
+
+  document.getElementById('r-subject').textContent = CONFIG.SUBJECT;
+  document.getElementById('r-name').textContent    = uName;
+  document.getElementById('r-score').textContent   = score;
+  document.getElementById('r-total').textContent   = `out of ${TOTAL_Q}  (−${CONFIG.MARKING} marking)`;
+  document.getElementById('r-acc').textContent     = acc+'%';
+  document.getElementById('r-analysis').innerHTML  =
+    `<div class="stat"><span>✅ Correct</span><span style="color:var(--green)">${c}</span></div>
+     <div class="stat"><span>❌ Wrong <small>(−${(w*CONFIG.MARKING).toFixed(2)})</small></span><span style="color:var(--red)">${w}</span></div>
+     <div class="stat"><span>⬜ Skipped</span><span style="color:var(--text-dim)">${sk}</span></div>
+     <div class="stat"><span>🎯 Accuracy (attempted)</span><span style="color:var(--green);font-weight:700">${acc}%</span></div>
+     <div class="stat"><span>📈 Overall %</span><span style="color:var(--accent2)">${overall}%</span></div>
+     <div class="stat"><span>🏆 Grade</span><span style="color:${gcol};font-weight:700">${grade}</span></div>
+     <div class="stat"><span>⏱ Time Used</span><span style="color:var(--text-dim)">${timeStr}</span></div>
+     <div class="stat"><span>⚠️ Tab Switches</span><span style="color:var(--yellow)">${tabN}</span></div>`;
+
+  const tm=calcTopics();
+  const entries=Object.entries(tm).filter(([,v])=>v.c+v.w>0).sort(([,a],[,b])=>(a.c/(a.c+a.w))-(b.c/(b.c+b.w)));
+  let th=`<div style="font-weight:700;color:var(--accent2);margin-bottom:12px;font-size:13px;">📊 Topic-wise Accuracy <span style="font-size:10px;color:var(--text-faint)">(weakest first)</span></div>`;
+  if(!entries.length) th+='<p style="color:var(--text-dim);font-size:12px;">No questions attempted</p>';
+  entries.forEach(([t,v])=>{
+    const tot=v.c+v.w, pct2=Math.round(v.c/tot*100);
+    const col=pct2>=70?'var(--green)':pct2>=50?'var(--yellow)':'var(--red)';
+    th+=`<div class="topic-row">
+      <span class="topic-name">${escHtml(t)}</span>
+      <div class="topic-bar-wrap"><div class="topic-bar" style="width:${pct2}%;background:${col};"></div></div>
+      <span class="topic-pct">${v.c}/${tot} <span style="color:${col}">${pct2}%</span></span>
+    </div>`;
+  });
+  document.getElementById('r-topics').innerHTML=th;
+  showGradeBadge(pct);
+  window.scrollTo(0,0);
+  clearS();
 }
 
-function shareResult() {
-  // Calculate correct answers
-  let correctCount = 0;
-  state.questions.forEach((q, i) => {
-    if (state.userAnswers[i] === q.correct) {
-      correctCount++;
-    }
+function shareTestTG(){
+  const msg=`🔥 I just finished this NORCET Practice Test! Download the file here and join @${CONFIG.TG_CHANNEL}`;
+  const tgUrl=`https://t.me/share/url?url=${encodeURIComponent('https://t.me/'+CONFIG.TG_CHANNEL)}&text=${encodeURIComponent(msg)}`;
+  window.open(tgUrl,'_blank');
+}
+function shareTG(){
+  const{c,w,sk,score}=calcScore();
+  const acc=c+w>0?(c/(c+w)*100).toFixed(1):'0.0';
+  const msg=`📊 NORCET CBT Result\n👤 ${uName}\n📝 ${CONFIG.SUBJECT}\n\n🎯 Score: ${score}/${TOTAL_Q}\n✅ Correct: ${c} | ❌ Wrong: ${w} | ⬜ Skip: ${sk}\n🔥 Accuracy: ${acc}%\n⚠️ Tab Switches: ${tabN}\n\n📢 @${CONFIG.TG_CHANNEL}`;
+  navigator.clipboard.writeText(msg).catch(()=>{});
+  window.open(`https://t.me/${CONFIG.TG_CHANNEL}`,'_blank');
+}
+
+function reviewMode(){
+  document.body.classList.remove('test-active');
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('review').style.display = 'block';
+  let h='';
+  QUESTIONS.forEach((q,i)=>{
+    const a=ans[i];
+    const cs=new Set(q.answer);
+    const gs=new Set();
+    if(a!==null&&a!==undefined){ q.sata&&Array.isArray(a)?a.forEach(x=>gs.add(x)):gs.add(a); }
+    const ok=([...cs].every(x=>gs.has(x))&&gs.size===cs.size);
+    const skipped=(a===null||a===undefined);
+    const status=skipped?'⬜ Skipped':ok?'✅ Correct':'❌ Wrong';
+    const scol=skipped?'var(--text-dim)':ok?'var(--green)':'var(--red)';
+    const t=qTimes[i]||0, tStr=t>0?`${Math.floor(t/60)}m ${t%60}s`:'--';
+    const badge=q.sata?'<span class="sata-badge">SATA</span>':'';
+    const cardStatus=skipped?"skip":ok?"correct":"wrong";
+
+    h+=`<div class="rev-card" data-status="${cardStatus}">
+      <div style="display:flex;justify-content:space-between;margin-bottom:8px;">
+        <span style="font-size:11px;color:var(--text-faint);">Q${i+1} · ${escHtml(getTopic(i))}</span>
+        <span style="font-size:11px;color:${scol};font-weight:700;">${status}</span>
+      </div>
+      <div class="rev-qt">${escHtml(q.q)}${badge}</div>`;
+
+    q.options.forEach((o,j)=>{
+      let cl='rv-n';
+      if(cs.has(j)) cl='rv-c';
+      if(gs.has(j)&&!cs.has(j)) cl='rv-w';
+      const mk=cs.has(j)?'✓ ':gs.has(j)?'✗ ':'  ';
+      h+=`<div class="rev-opt ${cl}">${mk}${String.fromCharCode(65+j)}. ${escHtml(String(o))}</div>`;
+    });
+
+    h+=`<div class="rev-exp">💡 ${q.explanation}</div>`;
+    if(q.blueprint) h+=`<div class="rev-meta">📋 ${escHtml(q.blueprint)}</div>`;
+    h+=`<button class="btn btn-ai" style="max-width:100%;padding:10px;font-size:13px;font-weight:700;margin-top:8px;display:flex;align-items:center;justify-content:center;gap:7px;" onclick="discussOnTG(${i})">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="white"><path d="M12 0C5.373 0 0 5.373 0 12s5.373 12 12 12 12-5.373 12-12S18.627 0 12 0zm5.894 8.221-1.97 9.28c-.145.658-.537.818-1.084.508l-3-2.21-1.447 1.394c-.16.16-.295.295-.605.295l.213-3.053 5.56-5.023c.242-.213-.054-.333-.373-.12L7.28 13.6l-2.95-.924c-.641-.2-.657-.641.136-.951l11.57-4.461c.537-.194 1.006.131.858.957z"/></svg>
+        📤 SHARE QUESTION TO TELEGRAM
+    </button>`;
+    h+=`<div class="rev-meta">⏱ Time on this question: ${tStr}</div></div>`;
   });
 
-  const total = state.questions.length;
-  const percentage = Math.round((correctCount / total) * 100);
-  
-  // Create the text message
-  const text = `I scored ${correctCount} out of ${total} (${percentage}%) on the NORCET CBT Exam!`;
+  const{c,w,sk,score}=calcScore();
+  const acc=c+w>0?(c/(c+w)*100).toFixed(1):'0.0';
+  h+=`<div style="margin:12px 0;padding:16px;border:2px solid var(--green-dim);border-radius:12px;background:var(--surface);">
+    <h3 style="color:var(--green);margin-bottom:12px;">📋 Final Summary</h3>
+    <div class="stat"><span>🎯 Score</span><span style="color:var(--accent2);font-size:1.3em;font-weight:800;">${score}/${TOTAL_Q}</span></div>
+    <div class="stat"><span>✅ Correct</span><span>${c}</span></div>
+    <div class="stat"><span>❌ Wrong</span><span>${w}</span></div>
+    <div class="stat"><span>⬜ Skipped</span><span>${sk}</span></div>
+    <div class="stat"><span>🔥 Accuracy</span><span style="color:var(--green);font-weight:700">${acc}%</span></div>
+    <div style="display:flex;flex-direction:column;gap:8px;margin-top:14px;">
+      <button class="btn btn-green" style="max-width:100%" onclick="shareTG()">📢 Share Scorecard</button>
+      <button class="btn btn-gray"  style="max-width:100%" onclick="resetTest()">🔄 Restart</button>
+    </div>
+  </div>`;
 
-  // Send to Telegram if available, otherwise alert
-  if (els.tgWebApp) {
-    try {
-      els.tgWebApp.sendData(JSON.stringify({ event: 'share', text: text }));
-    } catch (e) {
-      alert(text);
+  const{c:tc,w:tw,sk:tsk}=calcScore();
+  const tray=`<div class="rev-filter-tray" id="revFilterTray">
+    <button class="rev-filter-btn active-all" id="rfAll"     onclick="setRevFilter('all')"    >📋 All<br><span style="font-size:13px;font-weight:900">${TOTAL_Q}</span></button>
+    <button class="rev-filter-btn"            id="rfCorrect" onclick="setRevFilter('correct')" >✅ Correct<br><span style="font-size:13px;font-weight:900;color:var(--green)">${tc}</span></button>
+    <button class="rev-filter-btn"            id="rfWrong"   onclick="setRevFilter('wrong')"   >❌ Wrong<br><span style="font-size:13px;font-weight:900;color:var(--red)">${tw}</span></button>
+    <button class="rev-filter-btn"            id="rfSkip"    onclick="setRevFilter('skip')"    >⬜ Skip<br><span style="font-size:13px;font-weight:900;color:var(--text-dim)">${tsk}</span></button>
+  </div>`;
+  document.getElementById('reviewContent').innerHTML = tray+h;
+  window.scrollTo(0,0);
+}
+
+function setRevFilter(type){
+  document.querySelectorAll('.rev-card').forEach(c=>{
+    c.style.display = (type==='all'||c.dataset.status===type) ? '' : 'none';
+  });
+  const map={all:'active-all',correct:'active-correct',wrong:'active-wrong',skip:'active-skip'};
+  ['rfAll','rfCorrect','rfWrong','rfSkip'].forEach(id=>{
+    const btn=document.getElementById(id); if(!btn) return; btn.className='rev-filter-btn';
+  });
+  const activeId={all:'rfAll',correct:'rfCorrect',wrong:'rfWrong',skip:'rfSkip'}[type];
+  const ab=document.getElementById(activeId);
+  if(ab) ab.classList.add(map[type]);
+  const first=[...document.querySelectorAll('.rev-card')].find(c=>c.style.display!=='none');
+  if(first) first.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
+function openReport(){
+  document.getElementById('reportQNum').textContent = idx+1;
+  document.getElementById('reportModal').classList.add('show');
+}
+function closeReport(){ document.getElementById('reportModal').classList.remove('show'); }
+function submitReport(reason){
+  closeReport();
+  const btn=document.getElementById('reportBtn');
+  btn.textContent='✓ Reported — Thank you!';
+  btn.style.color='var(--green)';
+  setTimeout(()=>{ btn.textContent='🚩 Report an error in this question'; btn.style.color=''; },2800);
+}
+
+function setupTabMonitor(){
+  document.addEventListener('visibilitychange',()=>{
+    if(document.hidden&&!done){ tabN++; saveS(); updateTabUI(); }
+  });
+}
+function updateTabUI(){
+  if(tabN>0){
+    document.getElementById('tabCount').textContent=tabN;
+    document.getElementById('tabBadge').classList.add('visible');
+  }
+}
+
+function resetTest(){ clearS(); location.reload(); }
+
+function showManualCopyModal(msg){
+  const existing=document.getElementById('manualCopyModal');
+  if(existing) existing.remove();
+  const modal=document.createElement('div');
+  modal.id='manualCopyModal';
+  modal.style.cssText=`position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:25000;padding:16px;animation:fadeIn 0.3s ease;`;
+  const escaped=escHtml(msg).replace(/\n/g,'<br>');
+  modal.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:slideUp 0.3s ease;">
+      <h3 style="color:var(--accent2);margin-bottom:12px;font-size:15px;">📋 Copy & Share on Telegram</h3>
+      <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Long-press the text below to copy, then paste in Telegram:</p>
+      <div id="manualCopyText" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);line-height:1.6;max-height:200px;overflow-y:auto;user-select:text;-webkit-user-select:text;margin-bottom:14px;word-break:break-word;">${escaped}</div>
+      <div style="display:flex;gap:8px;flex-direction:column;">
+        <button onclick="const el=document.getElementById('manualCopyText');const r=document.createRange();r.selectNodeContents(el);const s=window.getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');}catch(e){}s.removeAllRanges();showToast('✅ Copied! Now open Telegram and paste.','success',2500);" class="btn btn-green" style="max-width:100%;padding:11px;font-size:13px;">📋 Copy Text</button>
+        <button onclick="window.open('https://t.me/${CONFIG.TG_DOUBTS}','_blank')" class="btn btn-tg" style="max-width:100%;padding:11px;font-size:13px;">✈️ Open Telegram Group</button>
+        <button onclick="document.getElementById('manualCopyModal').remove()" class="btn btn-gray" style="max-width:100%;padding:11px;font-size:13px;">Close</button>
+      </div>
+    </div>`;
+  document.body.appendChild(modal);
+}
+
+async function discussOnTG(questionIndex){
+  const q=QUESTIONS[questionIndex];
+  const qNum=questionIndex+1;
+  const divider='━━━━━━━━━━━━━━━━━━━━━━';
+  let msg=`${divider}\n`;
+  const subjectCodes={'fundamentals of nursing':'FON','psychiatric':'PSYCHIATRIC','psychiatry':'PSYCHIATRIC','community':'COMMUNITY','community health nursing':'COMMUNITY','pediatric':'PEDIATRIC','paediatric':'PEDIATRIC','child health nursing':'PEDIATRIC','medical surgical nursing':'MSN','msn':'MSN','obg':'OBG','obstetrics':'OBG','obstetrics and gynaecology':'OBG','gynecology':'OBG'};
+  const subKey=CONFIG.SUBJECT.toLowerCase().trim();
+  const subCode=Object.keys(subjectCodes).find(k=>subKey.includes(k));
+  const cardSubject=subCode?subjectCodes[subCode]:CONFIG.SUBJECT.toUpperCase();
+  msg+=`📘 ${cardSubject} CBT | Norcetedutech\n`;
+  msg+=`${divider}\n\n`;
+  msg+=`❓ Q.${qNum}\n${q.q}\n\n`;
+  q.options.forEach((opt,i)=>{ msg+=`   ${String.fromCharCode(65+i)}. ${opt}\n`; });
+  msg+=`\n💬 Drop your answer below!\n`;
+  msg+=`📢 @${CONFIG.TG_CHANNEL}\n`;
+  msg+=divider;
+
+  const openTG=()=>window.open(`https://t.me/${CONFIG.TG_DOUBTS}`,'_blank');
+
+  if(navigator.clipboard){
+    try{
+      await navigator.clipboard.writeText(msg);
+      showToast('✅ Copied! Opening Telegram...','success',1500);
+      setTimeout(openTG,500);
+      return;
+    }catch(err){}
+  }
+  showManualCopyModal(msg);
+}
+
+async function initClipboardAccess(){
+  try{
+    if(!navigator.clipboard){ clipboardPermissionGranted=false; return false; }
+    if(navigator.permissions&&navigator.permissions.query){
+      const result=await navigator.permissions.query({name:'clipboard-write'});
+      if(result.state==='granted'){ clipboardPermissionGranted=true; return true; }
+      if(result.state==='denied') { clipboardPermissionGranted=false; return false; }
+      if(result.state==='prompt') { showClipboardPermissionModal(); return true; }
     }
+    return true;
+  }catch(error){ return true; }
+}
+function setupClipboardListener(){
+  try{
+    if(navigator.permissions&&navigator.permissions.query){
+      navigator.permissions.query({name:'clipboard-write'}).then(result=>{
+        result.addEventListener('change',()=>{
+          clipboardPermissionGranted=(result.state==='granted');
+        });
+      });
+    }
+  }catch(error){}
+}
+function showClipboardPermissionModal(){
+  const modal=document.createElement('div');
+  modal.id='permissionModal';
+  modal.style.cssText=`position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:25000;padding:16px;animation:fadeIn 0.3s ease;`;
+  modal.innerHTML=`
+    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:24px;width:100%;max-width:380px;text-align:center;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:slideUp 0.3s ease;">
+      <div style="font-size:48px;margin-bottom:12px;">📋</div>
+      <h2 style="color:var(--accent2);margin-bottom:12px;font-size:18px;font-weight:800;">Enable Clipboard Access?</h2>
+      <p style="color:var(--text-dim);font-size:13px;line-height:1.6;margin-bottom:20px;">Allow clipboard access to easily copy and share questions to your doubt group on Telegram.</p>
+      <div style="background:var(--bg);border-left:4px solid var(--green);padding:12px;border-radius:6px;margin-bottom:20px;font-size:12px;color:var(--text-dim);text-align:left;">
+        <div style="margin-bottom:6px;">✓ Copy questions with one click</div>
+        <div style="margin-bottom:6px;">✓ Paste directly in Telegram</div>
+        <div>✓ Ask doubts faster</div>
+      </div>
+      <div style="display:flex;gap:10px;flex-direction:column;">
+        <button onclick="allowClipboard()" class="btn btn-green" style="max-width:100%;padding:12px;font-size:14px;">✓ Allow Access</button>
+        <button onclick="skipClipboard()"  class="btn btn-gray"  style="max-width:100%;padding:12px;font-size:14px;">Skip for Now</button>
+      </div>
+      <p style="font-size:10px;color:var(--text-faint);margin-top:12px;">You can enable this anytime in browser settings</p>
+    </div>`;
+  document.body.appendChild(modal);
+}
+async function allowClipboard(){
+  try{
+    await navigator.clipboard.writeText('test');
+    clipboardPermissionGranted=true;
+    closePermissionModal();
+    showToast('✅ Clipboard access enabled!','success',2000);
+  }catch(err){
+    clipboardPermissionGranted=false;
+    closePermissionModal();
+    showToast('⚠️ Clipboard permission denied. You can still copy manually.','error',3000);
+  }
+}
+function skipClipboard(){ closePermissionModal(); showToast('⚠️ You can still copy questions manually','info',2000); }
+function closePermissionModal(){
+  const modal=document.getElementById('permissionModal');
+  if(modal){ modal.style.animation='slideDown 0.3s ease'; setTimeout(()=>modal.remove(),300); }
+}
+
+
+let fontSize = 15;
+function changeFont(delta){
+  fontSize = Math.min(19, Math.max(13, fontSize + delta));
+  document.documentElement.style.fontSize = fontSize + 'px';
+  document.getElementById('fontLabel').textContent = fontSize + 'px';
+  try{ localStorage.setItem('norcet_fs', fontSize); }catch(e){}
+}
+
+function toggleTheme(){
+  const isLight = document.body.classList.toggle('light-mode');
+  document.getElementById('themeToggle').textContent = isLight ? '☀️' : '🌙';
+  try{ localStorage.setItem('norcet_theme', isLight ? 'light' : 'dark'); }catch(e){}
+}
+
+function initPrefs(){
+  try{
+    const fs = parseInt(localStorage.getItem('norcet_fs'));
+    if(fs >= 13 && fs <= 19){ fontSize = fs; document.documentElement.style.fontSize = fs + 'px'; document.getElementById('fontLabel').textContent = fs + 'px'; }
+    const th = localStorage.getItem('norcet_theme');
+    if(th === 'light'){ document.body.classList.add('light-mode'); document.getElementById('themeToggle').textContent = '☀️'; }
+  }catch(e){}
+}
+
+function showGradeBadge(pct){
+  const badge = document.getElementById('gradeBadge');
+  let label, bg, color;
+  if(pct >= 80){
+    label = '🏆 EXCELLENT'; bg = 'linear-gradient(135deg,#14532d,#22c55e)'; color = '#fff';
+    launchConfetti();
+  } else if(pct >= 65){
+    label = '👍 GOOD'; bg = 'linear-gradient(135deg,#1e3a8a,#3b82f6)'; color = '#fff';
+  } else if(pct >= 50){
+    label = '✅ PASS'; bg = 'linear-gradient(135deg,#78350f,#f59e0b)'; color = '#fff';
   } else {
-    alert(text);
+    label = '📚 NEEDS WORK'; bg = 'linear-gradient(135deg,#7f1d1d,#ef4444)'; color = '#fff';
   }
+  badge.textContent = label;
+  badge.style.background = bg;
+  badge.style.color = color;
+  badge.classList.add('visible');
 }
 
-// ==========================================
-// 4. UTILITIES
-// ==========================================
-
-function showToast(msg, type = 'info') {
-  const toast = document.createElement('div');
-  toast.className = `toast ${type}`;
-  toast.innerHTML = `
-    <div class="icon">${type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ'}</div>
-    <div class="message">${msg}</div>
-    <button class="close-btn">×</button>
-  `;
-  
-  const closeBtn = toast.querySelector('.close-btn');
-  closeBtn.onclick = () => {
-    toast.classList.add('hide');
-    setTimeout(() => toast.remove(), 300);
-  };
-  
-  els.notifications.appendChild(toast);
-  setTimeout(() => toast.classList.add('hide'), 3000);
-}
-
-// Simple Confetti Effect
-function startConfetti() {
-  const ctx = els.confettiCanvas.getContext('2d');
-  els.confettiCanvas.width = window.innerWidth;
-  els.confettiCanvas.height = window.innerHeight;
-  
-  const particles = [];
-  for (let i = 0; i < 100; i++) {
-    particles.push({
-      x: Math.random() * els.confettiCanvas.width,
-      y: Math.random() * els.confettiCanvas.height - els.confettiCanvas.height,
-      color: `hsl(${Math.random() * 360}, 70%, 50%)`,
-      size: Math.random() * 5 + 2,
+function launchConfetti(){
+  const canvas = document.getElementById('confettiCanvas');
+  const ctx = canvas.getContext('2d');
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  const pieces = [];
+  const colors = ['#22c55e','#3b82f6','#f59e0b','#ec4899','#a855f7','#06b6d4'];
+  for(let i = 0; i < 120; i++){
+    pieces.push({
+      x: Math.random() * canvas.width,
+      y: Math.random() * -canvas.height,
+      w: Math.random() * 10 + 5,
+      h: Math.random() * 5 + 3,
+      color: colors[Math.floor(Math.random()*colors.length)],
       speed: Math.random() * 3 + 2,
-      angle: Math.random() * 6.2
+      angle: Math.random() * 360,
+      spin: Math.random() * 6 - 3,
+      drift: Math.random() * 2 - 1
     });
   }
-  
-  function animate() {
-    ctx.clearRect(0, 0, els.confettiCanvas.width, els.confettiCanvas.height);      ctx.fillStyle = p.color;
-      ctx.beginPath();
-      ctx.arc(p.x, p.y, p.size, 0, Math.PI * 2);
-      ctx.fill();
+  let frame = 0;
+  function draw(){
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    pieces.forEach(p=>{
+      ctx.save();
+      ctx.translate(p.x + p.w/2, p.y + p.h/2);
+      ctx.rotate(p.angle * Math.PI/180);
+      ctx.fillStyle = p.color;
+      ctx.globalAlpha = Math.max(0, 1 - frame/180);
+      ctx.fillRect(-p.w/2, -p.h/2, p.w, p.h);
+      ctx.restore();
+      p.y += p.speed;
+      p.x += p.drift;
+      p.angle += p.spin;
     });
-    requestAnimationFrame(animate);
+    frame++;
+    if(frame < 200) requestAnimationFrame(draw);
+    else ctx.clearRect(0,0,canvas.width,canvas.height);
   }
-  animate();
+  draw();
 }
 
-// Start App
-init();
+function showToast(message, type='success', duration=3000){
+  const container=document.getElementById('notifications');
+  const toast=document.createElement('div');
+  toast.className=`toast ${type}`;
+  let icon='✓';
+  if(type==='error') icon='✕';
+  if(type==='info')  icon='ℹ';
+  toast.innerHTML=`<span class="icon">${icon}</span><span class="message">${message}</span><button class="close-btn" onclick="this.parentElement.remove()">×</button>`;
+  container.appendChild(toast);
+  setTimeout(()=>{ toast.classList.add('hide'); setTimeout(()=>toast.remove(),300); }, duration);
+}
