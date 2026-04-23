@@ -405,11 +405,19 @@ function submitExam() {
 }
 
 function shareResult() {
-  const text = `I scored ${Math.round((Object.keys(state.userAnswers).filter(i => state.questions[i].correct === state.userAnswers[i]).length)} / ${state.questions.length)} on the NORCET CBT Exam!`;
+  // Count correct answers
+  let correct = 0;
+  state.questions.forEach((q, i) => {
+    if (state.userAnswers[i] === q.correct) correct++;
+  });
+
+  const total = state.questions.length;
+  const text = I scored ${correct} / ${total} on the NORCET CBT Exam!;
+
   if (els.tgWebApp) {
     els.tgWebApp.sendData(JSON.stringify({ event: 'share', text: text }));
   } else {
-    alert('Result: ' + text);
+    alert(text);
   }
 }
 
