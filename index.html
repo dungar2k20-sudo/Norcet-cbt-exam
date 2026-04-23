@@ -8,17 +8,24 @@
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
   <meta name="theme-color" content="#0a0d14">
 
-  <!-- Telegram Web App Script (IMPORTANT - must be first) -->
+  <!-- Telegram Web App Script (Must be first) -->
   <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <!-- Favicon (Fixed 404 Error) -->
+  <link rel="icon" href="https://cdn-icons-png.flaticon.com/512/291/291774.png" type="image/png">
 
   <title>DEMO — NORCET CBT</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
+  <!-- Confetti Canvas -->
   <canvas id="confettiCanvas"></canvas>
+  
+  <!-- Notifications Container -->
   <div class="notifications" id="notifications"></div>
 
+  <!-- Fixed Header -->
   <div id="fixedHeader">
     <div id="headerRow1">
       <span id="brandTitle">CBT | NORCET</span>
@@ -31,7 +38,7 @@
     </div>
     <div id="timerBar"></div>
     
-    <a id="tgPromoBar" href="#" target="_blank" rel="noopener">
+    <a id="tgPromoBar" href="#" target="_blank" rel="noopener" style="display:none;">
       <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
         <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
       </svg>
@@ -39,6 +46,7 @@
     </a>
   </div>
 
+  <!-- Progress Bar -->
   <div id="progressBar">
     <div id="progressFill"></div>
   </div>
