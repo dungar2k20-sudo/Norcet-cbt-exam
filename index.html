@@ -1,0 +1,126 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0a0d14">
+
+  <!-- Telegram Web App Script (IMPORTANT - must be first) -->
+  <script src="https://telegram.org/js/telegram-web-app.js"></script>
+
+  <title>DEMO — NORCET CBT</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <canvas id="confettiCanvas"></canvas>
+  <div class="notifications" id="notifications"></div>
+
+  <div id="fixedHeader">
+    <div id="headerRow1">
+      <span id="brandTitle">CBT | NORCET</span>
+      <div id="headerCenter"></div>
+      <div id="timerWrap">
+        <span id="timerIcon">⏱</span>
+        <span id="timerDisp">--:--</span>
+        <span id="tabBadge">⚠<span id="tabCount">0</span></span>
+      </div>
+    </div>
+    <div id="timerBar"></div>
+    
+    <a id="tgPromoBar" href="#" target="_blank" rel="noopener">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path>
+      </svg>
+      <span>Try in Telegram</span>
+    </a>
+  </div>
+
+  <div id="progressBar">
+    <div id="progressFill"></div>
+  </div>
+
+  <!-- Login Screen -->
+  <div id="login" class="page">
+    <div class="logo-ring">📚</div>
+    <div class="login-title">NORCET CBT</div>
+    <div class="login-sub">Computer-Based Test</div>
+    <div class="login-meta">
+      Enter your <span>Name</span> to begin the exam
+    </div>
+    <input type="text" id="usernameInput" placeholder="Your Name" maxlength="50">
+    <button class="btn btn-blue" id="startBtn">Start Exam</button>
+  </div>
+
+  <!-- Test Screen -->
+  <div id="test">
+    <div id="qmeta">
+      <span id="qmetaLeft">Question <span id="qNum">1</span>/<span id="qTotal">0</span></span>
+      <span id="qmetaRight"><span id="markedCount">0</span> marked</span>
+    </div>
+    <div id="sataBadge"></div>
+    <div id="imgBox"></div>
+    <div id="qtext"></div>
+    <div id="options"></div>
+    <button id="reportBtn">Report Question</button>
+  </div>
+
+  <!-- Result Screen -->
+  <div id="result" class="page">
+    <div id="result-inner"></div>
+  </div>
+
+  <!-- Review Screen -->
+  <div id="review" class="page">
+    <div class="rev-filter-tray">
+      <button class="rev-filter-btn active-all" data-filter="all">All</button>
+      <button class="rev-filter-btn" data-filter="correct">✓ Correct</button>
+      <button class="rev-filter-btn" data-filter="wrong">✗ Wrong</button>
+      <button class="rev-filter-btn" data-filter="skip">- Skipped</button>
+    </div>
+    <div id="review-inner"></div>
+  </div>
+
+  <!-- Bottom Navigation -->
+  <div id="bottomNav">
+    <button class="btn btn-gray" id="prevBtn">← Previous</button>
+    <button class="btn btn-gray" id="markBtn">Mark</button>
+    <button class="btn btn-blue" id="nextBtn">Next →</button>
+    <button class="btn btn-red" id="submitBtn">Submit</button>
+  </div>
+
+  <!-- Right Panel -->
+  <div id="rightPanel">
+    <button class="btn btn-gray" id="paletteBtn">Palette</button>
+    <button class="btn btn-gray" id="reviewBtn">Review</button>
+  </div>
+
+  <!-- Palette Box -->
+  <div id="paletteBox">
+    <div class="pal-legend">
+      <div>✓ Answered</div>
+      <div>- Marked for Review</div>
+      <div>? Not Answered</div>
+    </div>
+    <div id="palGrid"></div>
+  </div>
+
+  <!-- Report Modal -->
+  <div id="reportModal">
+    <div id="reportBox">
+      <h3>Report Question</h3>
+      <button class="rep-opt" data-reason="error">Question has error</button>
+      <button class="rep-opt" data-reason="unclear">Question is unclear</button>
+      <button class="rep-opt" data-reason="answer">Answer seems wrong</button>
+      <button class="rep-opt" data-reason="other">Other issue</button>
+      <button class="rep-close">Close</button>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="script.js"></script>
+</body>
+</html>

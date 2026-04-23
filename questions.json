@@ -1,0 +1,67 @@
+[
+  {
+    "id": 1,
+    "question": "Which of the following is the primary function of the kidneys?",
+    "options": [
+      "Production of insulin",
+      "Filtration of blood and removal of waste",
+      "Digestion of proteins",
+      "Storage of bile"
+    ],
+    "correct": 1,
+    "explanation": "The kidneys filter blood to remove waste products and excess fluid, which are excreted as urine.",
+    "topic": "Physiology"
+  },
+  {
+    "id": 2,
+    "question": "What is the normal range for adult blood pressure?",
+    "options": [
+      "140/90 mmHg",
+      "120/80 mmHg",
+      "90/60 mmHg",
+      "160/100 mmHg"
+    ],
+    "correct": 1,
+    "explanation": "A normal blood pressure reading for a healthy adult is typically around 120/80 mmHg.",
+    "topic": "Vital Signs"
+  },
+  {
+    "id": 3,
+    "question": "Which vitamin is essential for blood clotting?",
+    "options": [
+      "Vitamin A",
+      "Vitamin C",
+      "Vitamin K",
+      "Vitamin D"
+    ],
+    "correct": 2,
+    "explanation": "Vitamin K plays a crucial role in the synthesis of clotting factors in the liver.",
+    "topic": "Nutrition"
+  },
+  {
+    "id": 4,
+    "question": "What is the first step in the nursing process?",
+    "options": [
+      "Planning",
+      "Implementation",
+      "Assessment",
+      "Evaluation"
+    ],
+    "correct": 2,
+    "explanation": "The nursing process begins with Assessment, followed by Diagnosis, Planning, Implementation, and Evaluation (ADPIE).",
+    "topic": "Nursing Process"
+  },
+  {
+    "id": 5,
+    "question": "Which route of administration provides the fastest onset of action?",
+    "options": [
+      "Oral",
+      "Intramuscular",
+      "Intravenous",
+      "Subcutaneous"
+    ],
+    "correct": 2,
+    "explanation": "Intravenous (IV) administration delivers medication directly into the bloodstream, resulting in the fastest onset of action.",
+    "topic": "Pharmacology"
+  }
+]
