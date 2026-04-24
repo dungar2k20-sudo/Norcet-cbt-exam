@@ -495,3 +495,136 @@ body.light-mode #qtext { background: #fff; }
   width: 100%; height: 100%;
   pointer-events: none; z-index: 9998;
 }
+/* ============================================
+   VAULT SELECTOR - RESPONSIVE GRID
+   ============================================ */
+
+#vaultList {
+  display: grid !important;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 12px;
+  width: 100%;
+  max-width: 500px;
+  margin: 0 auto;
+  padding: 0 12px;
+}
+
+/* Mobile (small screens - up to 480px) */
+@media (max-width: 480px) {
+  #vaultList {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+    max-width: 100%;
+    padding: 0 8px;
+  }
+}
+
+/* Tablet (medium screens - 481px to 768px) */
+@media (min-width: 481px) and (max-width: 768px) {
+  #vaultList {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 12px;
+    max-width: 400px;
+  }
+}
+
+/* Desktop (large screens - 769px and up) */
+@media (min-width: 769px) {
+  #vaultList {
+    grid-template-columns: repeat(3, 1fr);
+    gap: 14px;
+    max-width: 600px;
+  }
+}
+
+/* Vault Button Styling */
+.vault-btn {
+  padding: 16px 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-weight: 700;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  border: 2px solid var(--border);
+  background: var(--surface);
+  color: var(--text);
+  text-align: center;
+  white-space: normal;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  min-height: 100px;
+  font-family: inherit;
+}
+
+.vault-btn:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+  border-color: var(--accent2);
+}
+
+.vault-btn:active {
+  transform: translateY(0);
+  opacity: 0.9;
+}
+
+/* Active/Selected Vault Button */
+.vault-btn.active {
+  background: var(--accent);
+  color: #fff;
+  border-color: var(--accent2);
+  font-weight: 800;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.2);
+}
+
+/* Light mode adjustments */
+body.light-mode .vault-btn {
+  background: #fff;
+  border-color: #c8d3e0;
+  color: #1e293b;
+}
+
+body.light-mode .vault-btn:hover {
+  box-shadow: 0 4px 12px rgba(37, 99, 235, 0.15);
+  border-color: #2563eb;
+}
+
+body.light-mode .vault-btn.active {
+  background: #2563eb;
+  color: #fff;
+  border-color: #1d4ed8;
+}
+/* Styling for the In-App Telegram Join Bar */
+#tgPromoBar {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 10px;
+    background-color: #0088cc; /* Telegram Blue */
+    color: white;
+    padding: 12px;
+    font-weight: bold;
+    font-size: 14px;
+    cursor: pointer;
+    user-select: none; /* Prevents text selection on long press */
+    -webkit-tap-highlight-color: transparent; /* Removes the grey flicker on Android tap */
+    transition: background-color 0.2s ease;
+}
+
+/* Subtle effect when the user taps it on their phone */
+#tgPromoBar:active {
+    background-color: #0077b5; 
+}
+
+/* Optional: Ensures the SVG stays white and correctly sized */
+#tgPromoBar svg {
+    flex-shrink: 0;
+}
+
+#tgPromoText {
+    letter-spacing: 0.5px;
+}

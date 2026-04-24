@@ -1,68 +1,260 @@
+let isProcessing = false; // Add this at the very top of script.js
 
-/* Load questions from questions.json then boot the engine */
+async function checkVaultAccess(vaultName) {
+    if (isProcessing) return; // Stop the code if it's already running
+    isProcessing = true; 
+
+    if (!tgId) {
+        alert("User ID not found. Please restart the bot.");
+        isProcessing = false;
+        return;
+    }
+
+// ============================================
+// TELEGRAM WEB APP INITIALIZATION
+// ============================================
+const tg = window.Telegram.WebApp;
+const tgId = tg.initDataUnsafe?.user?.id; // Add this line
+tg.expand();
+tg.ready();
+// ============================================
+// MINI-APP ENFORCEMENT (ANTI-BROWSER)
+// ============================================
+function enforceMiniApp() {
+    // Check if we are inside the Telegram environment
+    if (!tg.initData || tg.initData === "") {
+        document.body.innerHTML = `
+            <div style="display:flex; flex-direction:column; align-items:center; justify-content:center; height:100vh; background:#0a0d14; color:white; text-align:center; padding:20px; font-family:sans-serif;">
+                <h1 style="font-size:50px;">🔐</h1>
+                <h2>Access Restricted</h2>
+                <p style="color:#94a3b8; line-height:1.6;">This CBT platform is only accessible via the <b>Official Telegram Mini App</b> for security and leaderboard tracking.</p>
+                <br>
+                <button onclick="window.location.href='https://t.me/norcettestseriesBot'" 
+                    style="background:#0088cc; color:white; border:none; padding:15px 30px; border-radius:10px; font-weight:bold; cursor:pointer;">
+                    Open in Telegram
+                </button>
+            </div>
+        `;
+        return false;
+    }
+    return true;
+}
+
+// Run the check immediately
+if (enforceMiniApp()) {
+    console.log("Verified: Running inside Telegram.");
+}
+// ============================================
+// DATABASE CONNECTION (GOOGLE SHEETS)
+// ============================================
+const DATABASE_URL = "https://script.google.com/macros/s/AKfycby4gptP5gGS-yGY_R_Js5SN4D5bGsvRtQm3t8g2X1yyoLaA93UC-4gMm7UQpwOpoH6hXA/exec";
+
+/**
+ * Checks if the user has access to a specific nursing vault.
+ * Triggered by the "OMEGA Vault" button.
+ */
+async function checkVaultAccess(vaultName) {
+    // 1. Safety Check: Ensure the Telegram ID exists
+    if (!tgId) {
+        alert("User ID not found. Please restart the bot.");
+        return;
+    }
+
+    const url = `${DATABASE_URL}?id=${tgId}&vault=${vaultName}`;
+    
+    try {
+        // 2. The Fetch: Using 'follow' to bypass Google's CORS security
+        const response = await fetch(url, { method: 'GET', redirect: 'follow' });
+        
+        // 3. Handle the response
+        const data = await response.json();
+        
+        if (data.allowed) {
+            selectVaultAndLogin(vaultName); // Access Granted!
+        } else {
+            // This replaces the "Vault Not Found" error with a clear message
+            alert("❌ Access Expired or Not Purchased for " + vaultName);
+        }
+    } catch (error) {
+        console.error("Connection Error:", error);
+        alert("🌐 Network Error: Please check your internet or try again.");
+    }
+}
+function showLockedPopup() {
+    tg.showPopup({
+        title: "OMEGA Vault Locked 🔐",
+        message: "Your subscription has expired or hasn't been activated. Contact our Sales Bot with your User ID to get access.",
+        buttons: [
+            {id: 'buy', type: 'default', text: 'Open Sales Bot'},
+            {id: 'cancel', type: 'destructive', text: 'Close'}
+        ]
+    }, (buttonId) => {
+        // ... inside showLockedPopup button logic
+if (buttonId === 'buy') {
+    // This forces Telegram to handle the link internally
+    tg.openTelegramLink('https://t.me/norcettestseriesBot');
+}
+    });
+}
+
+// ============================================
+// SECURITY CHECK (Commented for Local Testing)
+// ============================================
+if (!tg.initDataUnsafe || !tg.initDataUnsafe.user) {
+    console.warn("Unauthorized access detected - Bypassed for local testing");
+}
+
+// ============================================
+// GLOBAL VARIABLES & APP LOGIC
+// ============================================
 let QUESTIONS = [];
 let TOTAL_Q = 0;
 let TOTAL_TIME = 0;
-
-fetch('questions.json')
-  .then(r => r.json())
-  .then(data => {
-    QUESTIONS = data;
-    TOTAL_Q   = QUESTIONS.length;
-    TOTAL_TIME = TOTAL_Q * CONFIG.TIME_PER_Q;
-    bootApp();
-  })
-  .catch(() => {
-    document.getElementById('loginMeta').innerHTML =
-      '<span style="color:var(--red)">⚠️ Failed to load questions.json</span>';
-    document.getElementById('startBtn').disabled = true;
-  });
-
-
 let idx=0, uName='', ans=[], mrk=[], done=false;
 let tmr=null, tLeft=TOTAL_TIME, tabN=0, qTimes=[], palOpen=false;
+
+// ... [Rest of your code for startTest, loadQ, etc. continues here]
+
+// Rest of your code continues...
+
+// ============================================
+// INITIALIZE QUESTIONS ARRAY & VAULT SYSTEM
+// ============================================
+
+
+
+/**
+ * Boot the vault system on page load
+ */
+async function initVaultSystem() {
+  console.log('🚀 Initializing vault system...');
+  
+  // Scan for available vaults
+  await scanVaultFolder('./OMEGA/');
+  
+  // Show vault selector in login screen
+ const selectorContainer = document.getElementById('vaultList');
+if (selectorContainer) {
+  selectorContainer.innerHTML = buildVaultSelector();
+}
+  
+  // Load the current vault (from localStorage or first available)
+  if (availableVaults.length > 0) {
+    const vaultToLoad = currentVault || availableVaults[0]?.id;
+    await loadVault(vaultToLoad);
+  } else {
+    console.warn('⚠️ No vaults found!');
+    document.getElementById('loginMeta').innerHTML = 
+      '<span style="color:var(--red)">⚠️ No question vaults found in ./OMEGA/ folder</span>';
+    document.getElementById('startBtn').disabled = true;
+  }
+}
+
+// Auto-initialize when DOM is ready
+
+// Get current vault from localStorage or default to OMEGA
+// Find the vault
+
+
+
+
 let swipe={sx:0, sy:0, active:false};
 let clipboardPermissionGranted = false;
 
-function bootApp() {
+// ============================================
+// SCREEN NAVIGATION
+// ============================================
 
-  document.title                              = CONFIG.TEST_NAME;
-  document.getElementById('brandTitle').textContent   = CONFIG.BRAND;
-  document.getElementById('loginTitle').textContent   = CONFIG.BRAND;
-  document.getElementById('loginSubject').textContent = CONFIG.SUBJECT;
-  document.getElementById('logoEmoji').textContent    = CONFIG.LOGO_EMOJI;
-  const tgUrl = `https://t.me/${CONFIG.TG_CHANNEL}`;
-  document.getElementById('tgPromoBar').href          = tgUrl;
-  document.getElementById('tgPromoText').textContent  = `JOIN @${CONFIG.TG_CHANNEL.toUpperCase()} FOR DAILY TESTS`;
-  document.getElementById('tgLoginLink').href         = tgUrl;
-  document.getElementById('tgLoginLink').textContent  = `📱 Join @${CONFIG.TG_CHANNEL}`;
-  document.getElementById('resultTgBtn').textContent  = `📱 Join @${CONFIG.TG_CHANNEL}`;
-  document.getElementById('resultTgBtn').onclick      = () => window.open(tgUrl,'_blank');
+function showTestList() {
+  console.log('📂 Showing test list...');
+  document.getElementById('mainMenu').style.display = 'none';
+  document.getElementById('testList').style.display = 'flex';
+}
 
-  updateLoginMeta();
-  setupTabMonitor();
-  initPrefs();
+function backToMenu() {
+  console.log('🏠 Going back to main menu...');
+  document.getElementById('mainMenu').style.display = 'flex';
+  document.getElementById('testList').style.display = 'none';
+  document.getElementById('login').style.display = 'none';
+  document.getElementById('test').style.display = 'none';
+  document.getElementById('result').style.display = 'none';
+  document.getElementById('review').style.display = 'none';
+  document.getElementById('bottomNav').classList.remove('visible');
+  document.getElementById('rightPanel').classList.remove('visible');
+}
 
-  if(loadS()){
-    const r=`${Math.floor(tLeft/60)}m ${tLeft%60}s`;
-    const a=ans.filter(x=>x!==null).length;
-    if(confirm(`Resume "${uName}"?\n${a} answered · ${r} left\n\nCancel = Start fresh`)){
-      showTestUI();
-    } else { clearS(); }
+async function selectVaultAndLogin(vaultId) {
+  console.log('📂 Selected vault:', vaultId);
+  const vault = availableVaults.find(v => v.id === vaultId);
+  
+  if (!vault) {
+    console.error('❌ Vault not found');
+    return;
   }
+  
+  console.log('📥 Loading vault:', vault.name);
+  currentVault = vaultId;
+  
+  // Load the vault
+  const success = await loadVault(vaultId);
+  
+  if (success) {
+    console.log('✅ Vault loaded, showing login screen');
+    
+    // ✅ NEW: Auto-detect subject from questions
+    const detectedSubject = detectSubject();
+    CONFIG.SUBJECT = detectedSubject;
+    
+    // Hide all screens
+    document.getElementById('mainMenu').style.display = 'none';
+    document.getElementById('testList').style.display = 'none';
+    document.getElementById('test').style.display = 'none';
+    document.getElementById('result').style.display = 'none';
+    document.getElementById('review').style.display = 'none';
+    
+    // Show login screen
+    document.getElementById('login').style.display = 'flex';
+    
+    // Update vault name
+    document.getElementById('selectedVaultName').textContent = vault.name;
+    document.getElementById('loginSubject').textContent = CONFIG.SUBJECT; // ✅ Shows detected subject
+    document.getElementById('loginTitle').textContent = CONFIG.BRAND;
+    
+    // Update meta
+    updateLoginMeta();
+    
+    console.log('✅ Login screen ready');
+  } else {
+    console.error('❌ Failed to load vault');
+    showToast('❌ Failed to load vault', 'error', 2000);
+  }
+}
+function bootApp(){
+  document.getElementById('loginScreen').style.display='none';
+  document.getElementById('mainMenu').style.display='flex';
+  
+  // Connect the Result Screen Telegram button
+  const tgUrl = `https://t.me/${CONFIG.TG_CHANNEL}`;
+  document.getElementById('resultTgBtn').onclick = () => tg.openTelegramLink(tgUrl);
 }
 
 function updateLoginMeta(){
   if(!TOTAL_Q){
     document.getElementById('loginMeta').innerHTML =
-      '<span style="color:var(--red)">⚠️ No questions found — add your QUESTIONS array</span>';
+      '<span style="color:var(--red)">⚠️ No questions found</span>';
     document.getElementById('startBtn').disabled = true;
-    return;
+  } else {
+    // Questions loaded, enable button
+    document.getElementById('startBtn').disabled = false;
+    
+    const sata = QUESTIONS.filter(q=>q.sata).length;
+    document.getElementById('loginMeta').innerHTML =
+      `<span>${TOTAL_Q} Questions</span> <span>${Math.floor(TOTAL_TIME/60)} Minutes</span> <span>−${CONFIG.MARKING} Marking</span><br>`+
+      (sata ? `<span style="color:var(--yellow)">⚡ ${sata} SATA Questions</span> ` : '');
+    
+    // ✅ Update subject name on login page
+    document.getElementById('loginSubject').textContent = CONFIG.SUBJECT;
   }
-  const sata = QUESTIONS.filter(q=>q.sata).length;
-  document.getElementById('loginMeta').innerHTML =
-    `<span>${TOTAL_Q} Questions</span> <span>${Math.floor(TOTAL_TIME/60)} Minutes</span> <span>−${CONFIG.MARKING} Marking</span><br>`+
-    (sata ? `<span style="color:var(--yellow)">⚡ ${sata} SATA Questions</span> ` : '');
 }
 
 function saveS(){
@@ -88,9 +280,15 @@ function getTopic(i){
 }
 
 function startTest(){
-  if(!TOTAL_Q){ alert('No questions loaded. Please add your QUESTIONS array.'); return; }
+  if(!TOTAL_Q){ 
+    showToast('❌ No questions loaded. Select a vault first.', 'error', 2000);
+    return; 
+  }
   uName = document.getElementById('usernameInput').value.trim();
-  if(!uName){ alert('Please enter your name to begin.'); return; }
+  if(!uName){ 
+    showToast('⚠️ Please enter your name', 'info', 1500);
+    return; 
+  }
   initClipboardAccess();
   initA();
   goFS();
@@ -345,17 +543,21 @@ function submitTest(){
   clearS();
 }
 
-function shareTestTG(){
-  const msg=`🔥 I just finished this NORCET Practice Test! Download the file here and join @${CONFIG.TG_CHANNEL}`;
-  const tgUrl=`https://t.me/share/url?url=${encodeURIComponent('https://t.me/'+CONFIG.TG_CHANNEL)}&text=${encodeURIComponent(msg)}`;
-  window.open(tgUrl,'_blank');
+function shareTestTG(tName){
+  const text = `🔥 Try the ${tName} test on NORCET CBT!`;
+  const tgUrl = `https://t.me/share/url?url=https://t.me/${CONFIG.TG_CHANNEL}&text=${encodeURIComponent(text)}`;
+  tg.openTelegramLink(tgUrl);
 }
 function shareTG(){
-  const{c,w,sk,score}=calcScore();
-  const acc=c+w>0?(c/(c+w)*100).toFixed(1):'0.0';
-  const msg=`📊 NORCET CBT Result\n👤 ${uName}\n📝 ${CONFIG.SUBJECT}\n\n🎯 Score: ${score}/${TOTAL_Q}\n✅ Correct: ${c} | ❌ Wrong: ${w} | ⬜ Skip: ${sk}\n🔥 Accuracy: ${acc}%\n⚠️ Tab Switches: ${tabN}\n\n📢 @${CONFIG.TG_CHANNEL}`;
-  navigator.clipboard.writeText(msg).catch(()=>{});
-  window.open(`https://t.me/${CONFIG.TG_CHANNEL}`,'_blank');
+  const {c,w,sk,score} = calcScore();
+  const msg = `📊 NORCET Result\n✅ ${c} ❌ ${w} ⏭ ${sk}\n🏆 Score: ${score.toFixed(2)}`;
+  
+  // Tries to copy to clipboard first
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(msg).catch(()=>console.log("Copy failed"));
+  }
+  // Opens the Telegram Channel
+  tg.openTelegramLink(`https://t.me/${CONFIG.TG_CHANNEL}`);
 }
 
 function reviewMode(){
@@ -468,55 +670,33 @@ function updateTabUI(){
 
 function resetTest(){ clearS(); location.reload(); }
 
-function showManualCopyModal(msg){
-  const existing=document.getElementById('manualCopyModal');
-  if(existing) existing.remove();
-  const modal=document.createElement('div');
-  modal.id='manualCopyModal';
-  modal.style.cssText=`position:fixed;inset:0;background:rgba(0,0,0,0.85);display:flex;align-items:center;justify-content:center;z-index:25000;padding:16px;animation:fadeIn 0.3s ease;`;
-  const escaped=escHtml(msg).replace(/\n/g,'<br>');
-  modal.innerHTML=`
-    <div style="background:var(--surface);border:1px solid var(--border);border-radius:14px;padding:20px;width:100%;max-width:400px;box-shadow:0 8px 32px rgba(0,0,0,0.5);animation:slideUp 0.3s ease;">
-      <h3 style="color:var(--accent2);margin-bottom:12px;font-size:15px;">📋 Copy & Share on Telegram</h3>
-      <p style="color:var(--text-dim);font-size:12px;margin-bottom:10px;">Long-press the text below to copy, then paste in Telegram:</p>
-      <div id="manualCopyText" style="background:var(--bg);border:1px solid var(--border);border-radius:8px;padding:12px;font-size:12px;color:var(--text);line-height:1.6;max-height:200px;overflow-y:auto;user-select:text;-webkit-user-select:text;margin-bottom:14px;word-break:break-word;">${escaped}</div>
-      <div style="display:flex;gap:8px;flex-direction:column;">
-        <button onclick="const el=document.getElementById('manualCopyText');const r=document.createRange();r.selectNodeContents(el);const s=window.getSelection();s.removeAllRanges();s.addRange(r);try{document.execCommand('copy');}catch(e){}s.removeAllRanges();showToast('✅ Copied! Now open Telegram and paste.','success',2500);" class="btn btn-green" style="max-width:100%;padding:11px;font-size:13px;">📋 Copy Text</button>
-        <button onclick="window.open('https://t.me/${CONFIG.TG_DOUBTS}','_blank')" class="btn btn-tg" style="max-width:100%;padding:11px;font-size:13px;">✈️ Open Telegram Group</button>
-        <button onclick="document.getElementById('manualCopyModal').remove()" class="btn btn-gray" style="max-width:100%;padding:11px;font-size:13px;">Close</button>
+function showManualCopyModal(text) {
+  const modal = document.createElement('div');
+  modal.style.cssText = "position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.8);z-index:9999;display:flex;align-items:center;justify-content:center;padding:20px;";
+  modal.innerHTML = `
+      <div style="background:var(--surface);padding:20px;border-radius:12px;width:100%;max-width:320px;">
+          <h3 style="margin:0 0 10px 0;font-size:16px;">Copy Doubt Text</h3>
+          <textarea readonly style="width:100%;height:100px;background:var(--bg);color:var(--text);border:1px solid var(--border);padding:10px;border-radius:8px;margin-bottom:15px;font-size:12px;">${text}</textarea>
+          <button onclick="tg.openTelegramLink('https://t.me/${CONFIG.TG_DOUBTS}')" class="btn btn-tg" style="max-width:100%;padding:11px;font-size:13px;margin-bottom:10px;">✈️ Open Telegram Group</button>
+          <button onclick="this.parentElement.parentElement.remove()" class="btn btn-gray" style="max-width:100%;padding:11px;font-size:13px;">Close</button>
       </div>
-    </div>`;
+  `;
   document.body.appendChild(modal);
 }
 
-async function discussOnTG(questionIndex){
-  const q=QUESTIONS[questionIndex];
-  const qNum=questionIndex+1;
-  const divider='━━━━━━━━━━━━━━━━━━━━━━';
-  let msg=`${divider}\n`;
-  const subjectCodes={'fundamentals of nursing':'FON','psychiatric':'PSYCHIATRIC','psychiatry':'PSYCHIATRIC','community':'COMMUNITY','community health nursing':'COMMUNITY','pediatric':'PEDIATRIC','paediatric':'PEDIATRIC','child health nursing':'PEDIATRIC','medical surgical nursing':'MSN','msn':'MSN','obg':'OBG','obstetrics':'OBG','obstetrics and gynaecology':'OBG','gynecology':'OBG'};
-  const subKey=CONFIG.SUBJECT.toLowerCase().trim();
-  const subCode=Object.keys(subjectCodes).find(k=>subKey.includes(k));
-  const cardSubject=subCode?subjectCodes[subCode]:CONFIG.SUBJECT.toUpperCase();
-  msg+=`📘 ${cardSubject} CBT | Norcetedutech\n`;
-  msg+=`${divider}\n\n`;
-  msg+=`❓ Q.${qNum}\n${q.q}\n\n`;
-  q.options.forEach((opt,i)=>{ msg+=`   ${String.fromCharCode(65+i)}. ${opt}\n`; });
-  msg+=`\n💬 Drop your answer below!\n`;
-  msg+=`📢 @${CONFIG.TG_CHANNEL}\n`;
-  msg+=divider;
-
-  const openTG=()=>window.open(`https://t.me/${CONFIG.TG_DOUBTS}`,'_blank');
-
-  if(navigator.clipboard){
-    try{
-      await navigator.clipboard.writeText(msg);
-      showToast('✅ Copied! Opening Telegram...','success',1500);
-      setTimeout(openTG,500);
-      return;
-    }catch(err){}
+async function discussOnTG(){
+  const q = QUESTIONS[idx];
+  const text = `🤔 Doubt in Q: ${q.q}\n\nA) ${q.opts[0]}\nB) ${q.opts[1]}\nC) ${q.opts[2]}\nD) ${q.opts[3]}`;
+  
+  if(navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(text).then(() => {
+          tg.openTelegramLink(`https://t.me/${CONFIG.TG_DOUBTS}`);
+      }).catch(() => {
+          showManualCopyModal(text);
+      });
+  } else {
+      showManualCopyModal(text);
   }
-  showManualCopyModal(msg);
 }
 
 async function initClipboardAccess(){
@@ -593,7 +773,10 @@ function changeFont(delta){
 
 function toggleTheme(){
   const isLight = document.body.classList.toggle('light-mode');
+  // Update ALL theme toggles
   document.getElementById('themeToggle').textContent = isLight ? '☀️' : '🌙';
+  document.getElementById('themeToggle2').textContent = isLight ? '☀️' : '🌙';
+  document.getElementById('themeToggle3').textContent = isLight ? '☀️' : '🌙';
   try{ localStorage.setItem('norcet_theme', isLight ? 'light' : 'dark'); }catch(e){}
 }
 
