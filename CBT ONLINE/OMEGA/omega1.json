@@ -1,0 +1,19 @@
+[
+  {
+    "q": "A nurse is caring for a child admitted with suspected meningitis. Which finding is MOST indicative of meningeal irritation?",
+    "options": [
+      "Temperature of 38.2\u00b0C",
+      "Positive Kernig's sign",
+      "Heart rate of 110 bpm",
+      "Mild headache"
+    ],
+    "answer": [
+      1
+    ],
+    "sata": false,
+    "explanation": "Kernig's sign is a classic indicator of meningeal irritation. Fever, tachycardia and headache are non-specific symptoms.",
+    "blueprint": "Client Need: Physiological; Cognitive Level: Analysis",
+    "image": "",
+    "topic": "Neurological"
+  }
+]

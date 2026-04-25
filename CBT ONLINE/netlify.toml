@@ -1,0 +1,10 @@
+[[redirects]]
+  from = "/api/*"
+  to = https://script.google.com/macros/s/AKfycbz82qfgRGrstVLUvLsFGtDwL2A699y37w4mk5zca0TR5MkFg7q0jI2qHX2KWx5vzTse/exec
+  status = 200
+
+[[headers]]
+  for = "/*"
+  [headers.values]
+    Content-Security-Policy = "frame-ancestors 'self' https://t.me https://web.telegram.org;"
+    X-Frame-Options = "ALLOW-FROM https://t.me"
